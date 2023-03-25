@@ -2,12 +2,16 @@
 (function () {
 
 const jrDomain = "https://justread.link/";
-let isPremium = false;
+let isPremium = true;
 let jrSecret;
 let jrOpenCount;
 let hasBeenAskedForReview100 = false;
 let hasBeenAskedForReview1000 = false;
 let hasBeenAskedForReview10000 = false;
+var mediaRecorder ;
+var recordarea;
+var constraints = { audio: true };
+var chunks = [];
 
 let removeOrigContent;
 let chromeStorage, pageSelectedContainer;
@@ -822,14 +826,14 @@ function checkPremium() {
             else return response.text();
         })
         .then(response => {
-            isPremium = response === "true";
+            isPremium = true ;
             chrome.storage.sync.set({'isPremium': isPremium});
             afterPremium();
         })
         .catch((err) => console.error(`Fetch Error =\n`, err));
     } else {
-        isPremium = chromeStorage.isPremium ? chromeStorage.isPremium : false;
-        jrSecret = chromeStorage.jrSecret ? chromeStorage.jrSecret : false;
+        isPremium = true//chromeStorage.isPremium ? chromeStorage.isPremium : false;
+        jrSecret = true //chromeStorage.jrSecret ? chromeStorage.jrSecret : false;
         afterPremium();
     }
 }
@@ -1909,6 +1913,7 @@ function addComment(loc) {
 
         // Add the comment
         const commentContainer = document.createElement("div");
+        recordarea = document.createElement("div");
         commentContainer.id = commentId;
         commentContainer.className = "simple-comment-container jr-adding";
 
@@ -1920,10 +1925,24 @@ function addComment(loc) {
         textarea.onkeyup = textChange;
         styling.appendChild(textarea);
 
+        const recordBtn = document.createElement("button");
+        recordBtn.className = "record";
+        recordBtn.innerText = "Record";
+        recordBtn.disabled = true;
+        recordBtn.onclick = startRecording;
+        styling.appendChild(recordBtn);
+
+        const stopBtn = document.createElement("button");
+        stopBtn.className = "stop";
+        stopBtn.innerText = "Stop";
+        //stopBtn.disabled = true;
+        stopBtn.onclick = stopRecording;
+        styling.appendChild(stopBtn);
+
+
         const postBtn = document.createElement("button");
         postBtn.className = "jr-post";
         postBtn.innerText = "Comment";
-        postBtn.disabled = true;
         postBtn.onclick = placeComment;
         styling.appendChild(postBtn);
 
@@ -1938,6 +1957,7 @@ function addComment(loc) {
         commentContainer.style.top = loc.y + "px";
 
         comments.appendChild(commentContainer);
+        commentContainer.appendChild(recordarea)
 
         textarea.focus();
         setTimeout(function() {
@@ -1957,6 +1977,93 @@ function textChange() {
     this.style.height = (this.scrollHeight + 10) + 'px';
 }
 
+
+
+function startRecording() {
+    navigator.mediaDevices
+    .getUserMedia(constraints)
+    .then((stream) => {
+      /* use the stream */
+       mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.start();
+    console.log(mediaRecorder.state);
+    console.log("recorder started");
+    //record.style.background = "red";
+
+    //stop.disabled = false;
+    //record.disabled = true;
+  
+    })
+    .catch((err) => {
+      /* handle the error */
+      //onError(err)
+      console.log(err)
+    });
+    
+  }
+
+  function stopRecording() {
+    if(mediaRecorder)
+    mediaRecorder.stop();
+    mediaRecorder.ondataavailable = function(e) {
+        chunks.push(e.data);
+        clips(chunks);
+      }
+    
+    console.log(mediaRecorder.state);
+    console.log("recorder stopped");
+    
+  }
+
+  function clips(chunks) {
+    console.log("data available after MediaRecorder.stop() called.");
+
+    const clipName = prompt('Enter a name for your sound clip?','My unnamed clip');
+
+    const clipContainer = document.createElement('article');
+    const clipLabel = document.createElement('p');
+    const audio = document.createElement('audio');
+    const deleteButton = document.createElement('button');
+
+    clipContainer.classList.add('clip');
+    audio.setAttribute('controls', '');
+    deleteButton.textContent = 'Delete';
+    deleteButton.className = 'delete';
+
+    if(clipName === null) {
+      clipLabel.textContent = 'My unnamed clip';
+    } else {
+      clipLabel.textContent = clipName;
+    }
+
+    clipContainer.appendChild(audio);
+    clipContainer.appendChild(clipLabel);
+    clipContainer.appendChild(deleteButton);
+    recordarea.appendChild(clipContainer);
+
+    audio.controls = true;
+    const blob = new Blob(chunks, { 'type' : 'audio/ogg; codecs=opus' });
+    chunks = [];
+    const audioURL = window.URL.createObjectURL(blob);
+    audio.src = audioURL;
+    console.log("recorder stopped");
+
+    deleteButton.onclick = function(e) {
+      e.target.closest(".clip").remove();
+    }
+
+    clipLabel.onclick = function() {
+      const existingName = clipLabel.textContent;
+      const newClipName = prompt('Enter a new name for your sound clip?');
+      if(newClipName === null) {
+        clipLabel.textContent = existingName;
+      } else {
+        clipLabel.textContent = newClipName;
+      }
+    }
+  }
+
+  
 function placeComment() {
     hasSavedLink = false;
     shareDropdown.classList.remove("active");
@@ -2447,6 +2554,7 @@ function getContent(keepJR) {
 let hasSavedLink = false,
     alertTimeout;
 function getSavableLink() {
+    console.log("getSavableLink is called")
     if(isPremium && jrSecret) {
         if(!hasSavedLink) {
             hasSavedLink = true;
@@ -2475,6 +2583,7 @@ function getSavableLink() {
             }
 
 
+            console.log(copy)
 
             const date = new Date();
             fetch(jrDomain + "newEntry", {
@@ -2761,7 +2870,7 @@ function createSimplifiedOverlay() {
 
     addCommentBtn.title = "Add a comment";
     addCommentBtn.onclick = function() {
-        if(isPremium) {
+        if(true) {
             addComment({x: parseInt(this.style.left), y: parseInt(this.style.top)});
         } else {
             const notification = {
@@ -2962,6 +3071,7 @@ function createSimplifiedOverlay() {
         });
 
         // The share button
+
         simpleArticleIframe.querySelector(".simple-share").addEventListener('click', getSavableLink);
         // The share dropdown
         shareDropdown = simpleArticleIframe.querySelector(".simple-share-dropdown");
